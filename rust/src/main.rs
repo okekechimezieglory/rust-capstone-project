@@ -22,7 +22,8 @@ fn main() -> bitcoincore_rpc::Result<()> {
     // Connect to Bitcoin Core RPC
     let rpc = Client::new(
         RPC_URL,
-        Auth::User Pass(RPC_USER.to_owned(), RPC_PASS.to_owned()),
+        Auth::User,
+        Pass(RPC_USER.to_owned(), RPC_PASS.to_owned()),
     )?;
 
     // Create wallets if they do not exist
@@ -31,10 +32,14 @@ fn main() -> bitcoincore_rpc::Result<()> {
 
     // Generate an address for the Miner wallet
     let miner_address = rpc.get_new_address(Some("Mining Reward"), None)?;
-    
+
     // Mine blocks to the Miner wallet address
     let blocks_mined = rpc.generate_to_address(1, &miner_address)?;
-    println!("Mined {} blocks to address: {}", blocks_mined.len(), miner_address);
+    println!(
+        "Mined {} blocks to address: {}",
+        blocks_mined.len(),
+        miner_address
+    );
 
     // Check the balance of the Miner wallet
     let miner_balance = rpc.get_balance(Some("Miner"), None)?;
@@ -56,7 +61,7 @@ fn main() -> bitcoincore_rpc::Result<()> {
 
     // Extract transaction details
     let transaction_details = rpc.get_transaction(&txid, None, true)?;
-    
+
     // Write the output to out.txt
     let mut output_file = File::create("out.txt")?;
     writeln!(output_file, "{}", transaction_details.txid)?;
@@ -64,11 +69,23 @@ fn main() -> bitcoincore_rpc::Result<()> {
     writeln!(output_file, "{}", miner_balance)?;
     writeln!(output_file, "{}", trader_address)?;
     writeln!(output_file, "20")?; // Amount sent to Trader
-    writeln!(output_file, "{}", transaction_details.vout[0].script_pub_key.addresses[0])?; // Change address
+    writeln!(
+        output_file,
+        "{}",
+        transaction_details.vout[0].script_pub_key.addresses[0]
+    )?; // Change address
     writeln!(output_file, "{}", transaction_details.vout[1].value)?; // Change amount
     writeln!(output_file, "{}", transaction_details.fee.unwrap_or(0.0))?; // Transaction fee
-    writeln!(output_file, "{}", transaction_details.blockheight.unwrap_or(-1))?; // Block height
-    writeln!(output_file, "{}", transaction_details.blockhash.unwrap_or_default())?; // Block hash
+    writeln!(
+        output_file,
+        "{}",
+        transaction_details.blockheight.unwrap_or(-1)
+    )?; // Block height
+    writeln!(
+        output_file,
+        "{}",
+        transaction_details.blockhash.unwrap_or_default()
+    )?; // Block hash
 
     Ok(())
 }
@@ -79,10 +96,10 @@ fn main() -> bitcoincore_rpc::Result<()> {
 fn send(rpc: &Client, addr: &str) -> bitcoincore_rpc::Result<String> {
     let args = [
         json!([{ addr: 20 }]), // recipient address with amount
-        json!(null),            // conf target
-        json!(null),            // estimate mode
-        json!(null),            // fee rate in sats/vb
-        json!(null),            // Empty option object
+        json!(null),           // conf target
+        json!(null),           // estimate mode
+        json!(null),           // fee rate in sats/vb
+        json!(null),           // Empty option object
     ];
 
     let send_result = rpc.call::<SendResult>("sendtoaddress", &args)?;
