@@ -1,5 +1,5 @@
 #![allow(unused)]
-use bitcoincore_rpc::bitcoin::{Amount, SignedAmount, Txid, Network};
+use bitcoincore_rpc::bitcoin::{Amount, Network, SignedAmount, Txid};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use serde::Deserialize;
 use serde_json::json;
@@ -51,30 +51,32 @@ fn main() -> bitcoincore_rpc::Result<()> {
 
     // Check the balance of the Miner wallet
     let miner_balance = rpc.get_balance(None, None)?;
-    println!("Miner wallet balance: {}", miner_balance);
+    println!("Miner wallet balance: {miner_balance}");
 
     // Generate a receiving address for the Trader wallet
     let trader_address = rpc.get_new_address(Some("Received"), None)?;
 
     // Send 20 BTC from Miner to Trader (clone to avoid move)
     let txid_str = send(&rpc, &trader_address.clone().assume_checked().to_string())?;
-    
+
     // Parse transaction ID
     let txid = match Txid::from_str(&txid_str) {
         Ok(id) => id,
         Err(e) => {
-            eprintln!("Failed to parse transaction ID: {}", e);
-            return Err(bitcoincore_rpc::Error::JsonRpc(bitcoincore_rpc::jsonrpc::Error::Transport(
-                format!("Invalid transaction ID: {}", e).into()
-            )));
+            eprintln!("Failed to parse transaction ID: {e}");
+            return Err(bitcoincore_rpc::Error::JsonRpc(
+                bitcoincore_rpc::jsonrpc::Error::Transport(
+                    format!("Invalid transaction ID: {e}").into(),
+                ),
+            ));
         }
     };
-    
-    println!("Transaction ID: {}", txid);
+
+    println!("Transaction ID: {txid}");
 
     // Fetch the unconfirmed transaction from the mempool
     let mempool_entry = rpc.get_mempool_entry(&txid)?;
-    println!("Mempool Entry: {:?}", mempool_entry);
+    println!("Mempool Entry: {mempool_entry:?}");
 
     // Mine 1 block to confirm the transaction
     rpc.generate_to_address(1, &miner_checked)?;
@@ -85,11 +87,11 @@ fn main() -> bitcoincore_rpc::Result<()> {
     // Write the output to out.txt
     let mut output_file = File::create("out.txt")?;
     writeln!(output_file, "{}", transaction_details.info.txid)?;
-    writeln!(output_file, "{}", miner_checked)?;
-    writeln!(output_file, "{}", miner_balance)?;
+    writeln!(output_file, "{miner_checked}")?;
+    writeln!(output_file, "{miner_balance}")?;
     writeln!(output_file, "{}", trader_address.assume_checked())?;
     writeln!(output_file, "20")?; // Amount sent to Trader
-    
+
     // Handle transaction details
     if let Some(first_detail) = transaction_details.details.first() {
         // Handle address - it might be None for some transaction types
@@ -97,27 +99,29 @@ fn main() -> bitcoincore_rpc::Result<()> {
             Some(addr) => addr.clone().assume_checked().to_string(),
             None => "N/A".to_string(),
         };
-        writeln!(output_file, "{}", address_str)?;
+        writeln!(output_file, "{address_str}")?;
         writeln!(output_file, "{}", first_detail.amount.abs())?; // Use abs() to get positive amount
     } else {
         writeln!(output_file, "N/A")?;
         writeln!(output_file, "0")?;
     }
-    
+
     // Transaction fee - handle SignedAmount properly
     let fee = transaction_details.fee.unwrap_or(SignedAmount::from_sat(0));
     writeln!(output_file, "{}", fee.abs().to_btc())?; // Transaction fee
-    
+
     writeln!(
         output_file,
         "{}",
         transaction_details.info.blockheight.unwrap_or(u32::MAX)
     )?; // Block height
-    
+
     writeln!(
         output_file,
         "{}",
-        transaction_details.info.blockhash
+        transaction_details
+            .info
+            .blockhash
             .map(|h| h.to_string())
             .unwrap_or_else(|| "N/A".to_string())
     )?; // Block hash
