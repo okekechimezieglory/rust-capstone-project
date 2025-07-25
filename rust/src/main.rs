@@ -26,11 +26,22 @@ fn main() -> bitcoincore_rpc::Result<()> {
     )?;
 
     // Create wallets if they do not exist
-    rpc.create_wallet("Miner", None, None, None, Some(false))?;
-    rpc.create_wallet("Trader", None, None, None, Some(false))?;
+    let _ = rpc.create_wallet("Miner", None, None, None, Some(false));
+    let _ = rpc.create_wallet("Trader", None, None, None, Some(false));
+
+    // Create wallet-specific RPC clients
+    let miner_rpc = Client::new(
+        &format!("{RPC_URL}/wallet/Miner"),
+        Auth::UserPass(RPC_USER.to_owned(), RPC_PASS.to_owned()),
+    )?;
+
+    let trader_rpc = Client::new(
+        &format!("{RPC_URL}/wallet/Trader"),
+        Auth::UserPass(RPC_USER.to_owned(), RPC_PASS.to_owned()),
+    )?;
 
     // Generate an address for the Miner wallet
-    let miner_address = rpc.get_new_address(Some("Mining Reward"), None)?;
+    let miner_address = miner_rpc.get_new_address(Some("Mining Reward"), None)?;
 
     // Convert address to checked network address for mining
     let miner_checked = match miner_address.clone().require_network(Network::Regtest) {
@@ -50,14 +61,17 @@ fn main() -> bitcoincore_rpc::Result<()> {
     );
 
     // Check the balance of the Miner wallet
-    let miner_balance = rpc.get_balance(None, None)?;
+    let miner_balance = miner_rpc.get_balance(None, None)?;
     println!("Miner wallet balance: {miner_balance}");
 
     // Generate a receiving address for the Trader wallet
-    let trader_address = rpc.get_new_address(Some("Received"), None)?;
+    let trader_address = trader_rpc.get_new_address(Some("Received"), None)?;
 
     // Send 20 BTC from Miner to Trader (clone to avoid move)
-    let txid_str = send(&rpc, &trader_address.clone().assume_checked().to_string())?;
+    let txid_str = send(
+        &miner_rpc,
+        &trader_address.clone().assume_checked().to_string(),
+    )?;
 
     // Parse transaction ID
     let txid = match Txid::from_str(&txid_str) {
@@ -71,7 +85,6 @@ fn main() -> bitcoincore_rpc::Result<()> {
             ));
         }
     };
-
     println!("Transaction ID: {txid}");
 
     // Fetch the unconfirmed transaction from the mempool
@@ -82,7 +95,7 @@ fn main() -> bitcoincore_rpc::Result<()> {
     rpc.generate_to_address(1, &miner_checked)?;
 
     // Extract transaction details
-    let transaction_details = rpc.get_transaction(&txid, None)?;
+    let transaction_details = miner_rpc.get_transaction(&txid, None)?;
 
     // Write the output to out.txt
     let mut output_file = File::create("out.txt")?;
@@ -109,13 +122,11 @@ fn main() -> bitcoincore_rpc::Result<()> {
     // Transaction fee - handle SignedAmount properly
     let fee = transaction_details.fee.unwrap_or(SignedAmount::from_sat(0));
     writeln!(output_file, "{}", fee.abs().to_btc())?; // Transaction fee
-
     writeln!(
         output_file,
         "{}",
         transaction_details.info.blockheight.unwrap_or(u32::MAX)
     )?; // Block height
-
     writeln!(
         output_file,
         "{}",
